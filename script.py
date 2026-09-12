@@ -3,11 +3,12 @@ import csv
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
 from playwright.sync_api import Playwright, sync_playwright
 
 
 REQUIRED_COLUMNS = {
-    "kegiiatan",
+    "kegiatan",
     "tempat",
     "TMT",
     "TST",
@@ -57,7 +58,7 @@ def run(
 
         for activity_number, activity in enumerate(activities, start=1):
             page.get_by_role("link", name=" Tambah").click()
-            page.locator("#Kegiatan").fill(activity["kegiiatan"])
+            page.locator("#Kegiatan").fill(activity["kegiatan"])
             page.locator("#Tempat").fill(activity["tempat"])
             page.locator("#TMT").fill(activity["TMT"])
             page.locator("#TST").fill(activity["TST"])
@@ -77,6 +78,7 @@ def run(
 
 
 def main() -> None:
+    load_dotenv()
     parser = argparse.ArgumentParser(description="Submit SIPPm activities from a CSV file.")
     parser.add_argument("csv_file", type=Path, help="CSV containing activity rows")
     args = parser.parse_args()
