@@ -121,6 +121,19 @@ python script.py data.csv
 
 Browser akan terbuka dan aplikasi akan mengisi semua baris dalam CSV satu per satu.
 
+Secara default, ada jeda 1 detik di antara setiap aksi agar proses mudah dilihat.
+Untuk memperlambat proses, gunakan angka yang lebih besar:
+
+```bash
+python script.py data.csv --delay 2
+```
+
+Untuk menghilangkan jeda:
+
+```bash
+python script.py data.csv --delay 0
+```
+
 ## Jika muncul error
 
 **`No such file or directory`**

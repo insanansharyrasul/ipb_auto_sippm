@@ -58,21 +58,32 @@ def run(
     username: str,
     password: str,
     csv_directory: Path,
+    delay_seconds: float,
 ) -> None:
     logger.info("Starting browser")
     browser = playwright.chromium.launch(headless=False)
     context = browser.new_context()
     try:
         page = context.new_page()
+
+        def pause() -> None:
+            page.wait_for_timeout(round(delay_seconds * 1000))
+
         logger.info("Opening login page")
         page.goto("https://sippm.ipb.ac.id/Account/Login")
+        pause()
         logger.info("Logging in as %s", username)
         page.get_by_role("textbox", name="Username").fill(username)
+        pause()
         page.get_by_role("textbox", name="Password").fill(password)
+        pause()
         page.get_by_role("button", name="Masuk").click()
+        pause()
         logger.info("Opening activity log")
         page.get_by_role("link", name=" Detail").click()
+        pause()
         page.get_by_role("link", name="Log Kegiatan").click()
+        pause()
 
         for activity_number, activity in enumerate(activities, start=1):
             logger.info(
@@ -82,21 +93,29 @@ def run(
                 activity["kegiatan"],
             )
             page.get_by_role("link", name=" Tambah").click()
+            pause()
             page.locator("#Kegiatan").fill(activity["kegiatan"])
+            pause()
             page.locator("#Tempat").fill(activity["tempat"])
+            pause()
             page.locator("#TMT").fill(activity["TMT"])
+            pause()
             page.locator("#TST").fill(activity["TST"])
+            pause()
             evidence_path = Path(activity["bukti_dokumentasi"])
             if not evidence_path.is_absolute():
                 evidence_path = csv_directory / evidence_path
-            logger.infoexample("Uploading evidence: %s", evidence_path)
+            logger.info("Uploading evidence: %s", evidence_path)
             page.get_by_role("button", name="This field is required.").set_input_files(
                 str(evidence_path)
             )
+            pause()
             page.get_by_role("button", name="Simpan").click()
+            pause()
             logger.info("Activity %d submitted successfully", activity_number)
             if activity_number < len(activities):
                 page.get_by_role("link", name="Log Kegiatan").click()
+                pause()
         logger.info("All %d activities submitted successfully", len(activities))
     finally:
         context.close()
@@ -108,7 +127,16 @@ def main() -> None:
     load_dotenv()
     parser = argparse.ArgumentParser(description="Submit SIPPm activities from a CSV file.")
     parser.add_argument("csv_file", type=Path, help="CSV containing activity rows")
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=1.0,
+        help="Seconds to wait between browser actions (default: 1)",
+    )
     args = parser.parse_args()
+
+    if args.delay < 0:
+        parser.error("--delay must be zero or greater")
 
     username = os.environ.get("SIPPM_USERNAME")
     password = os.environ.get("SIPPM_PASSWORD")
@@ -119,7 +147,14 @@ def main() -> None:
         activities = read_activities(args.csv_file)
         logger.info("Loaded %d activities from %s", len(activities), args.csv_file)
         with sync_playwright() as playwright:
-            run(playwright, activities, username, password, args.csv_file.parent)
+            run(
+                playwright,
+                activities,
+                username,
+                password,
+                args.csv_file.parent,
+                args.delay,
+            )
     except Exception:
         logger.exception("The script stopped because of an error")
         raise SystemExit(1)
