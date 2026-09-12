@@ -1,10 +1,14 @@
 import argparse
 import csv
+import logging
 import os
 from pathlib import Path
 
 from dotenv import load_dotenv
 from playwright.sync_api import Playwright, sync_playwright
+
+
+logger = logging.getLogger(__name__)
 
 
 REQUIRED_COLUMNS = {
@@ -17,6 +21,9 @@ REQUIRED_COLUMNS = {
 
 
 def read_activities(csv_path: Path) -> list[dict[str, str]]:
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"CSV file was not found: {csv_path}")
+
     with csv_path.open(newline="", encoding="utf-8-sig") as csv_file:
         reader = csv.DictReader(csv_file)
         columns = set(reader.fieldnames or [])
@@ -31,6 +38,13 @@ def read_activities(csv_path: Path) -> list[dict[str, str]]:
                 continue
             if any(not row[column].strip() for column in REQUIRED_COLUMNS):
                 raise ValueError(f"CSV row {row_number} contains an empty required field")
+            evidence_path = Path(row["bukti_dokumentasi"])
+            if not evidence_path.is_absolute():
+                evidence_path = csv_path.parent / evidence_path
+            if not evidence_path.is_file():
+                raise FileNotFoundError(
+                    f"Evidence file in CSV row {row_number} was not found: {evidence_path}"
+                )
             activities.append(row)
 
     if not activities:
@@ -45,18 +59,28 @@ def run(
     password: str,
     csv_directory: Path,
 ) -> None:
+    logger.info("Starting browser")
     browser = playwright.chromium.launch(headless=False)
     context = browser.new_context()
     try:
         page = context.new_page()
+        logger.info("Opening login page")
         page.goto("https://sippm.ipb.ac.id/Account/Login")
+        logger.info("Logging in as %s", username)
         page.get_by_role("textbox", name="Username").fill(username)
         page.get_by_role("textbox", name="Password").fill(password)
         page.get_by_role("button", name="Masuk").click()
+        logger.info("Opening activity log")
         page.get_by_role("link", name=" Detail").click()
         page.get_by_role("link", name="Log Kegiatan").click()
 
         for activity_number, activity in enumerate(activities, start=1):
+            logger.info(
+                "Submitting activity %d/%d: %s",
+                activity_number,
+                len(activities),
+                activity["kegiatan"],
+            )
             page.get_by_role("link", name=" Tambah").click()
             page.locator("#Kegiatan").fill(activity["kegiatan"])
             page.locator("#Tempat").fill(activity["tempat"])
@@ -65,19 +89,22 @@ def run(
             evidence_path = Path(activity["bukti_dokumentasi"])
             if not evidence_path.is_absolute():
                 evidence_path = csv_directory / evidence_path
+            logger.infoexample("Uploading evidence: %s", evidence_path)
             page.get_by_role("button", name="This field is required.").set_input_files(
                 str(evidence_path)
             )
             page.get_by_role("button", name="Simpan").click()
-            print(f"Submitted activity {activity_number}/{len(activities)}")
+            logger.info("Activity %d submitted successfully", activity_number)
             if activity_number < len(activities):
                 page.get_by_role("link", name="Log Kegiatan").click()
+        logger.info("All %d activities submitted successfully", len(activities))
     finally:
         context.close()
         browser.close()
 
 
 def main() -> None:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     load_dotenv()
     parser = argparse.ArgumentParser(description="Submit SIPPm activities from a CSV file.")
     parser.add_argument("csv_file", type=Path, help="CSV containing activity rows")
@@ -88,9 +115,14 @@ def main() -> None:
     if not username or not password:
         raise SystemExit("Set SIPPM_USERNAME and SIPPM_PASSWORD before running the script.")
 
-    activities = read_activities(args.csv_file)
-    with sync_playwright() as playwright:
-        run(playwright, activities, username, password, args.csv_file.parent)
+    try:
+        activities = read_activities(args.csv_file)
+        logger.info("Loaded %d activities from %s", len(activities), args.csv_file)
+        with sync_playwright() as playwright:
+            run(playwright, activities, username, password, args.csv_file.parent)
+    except Exception:
+        logger.exception("The script stopped because of an error")
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":
