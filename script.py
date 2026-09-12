@@ -71,19 +71,13 @@ def run(
 
         logger.info("Opening login page")
         page.goto("https://sippm.ipb.ac.id/Account/Login")
-        pause()
         logger.info("Logging in as %s", username)
         page.get_by_role("textbox", name="Username").fill(username)
-        pause()
         page.get_by_role("textbox", name="Password").fill(password)
-        pause()
         page.get_by_role("button", name="Masuk").click()
-        pause()
         logger.info("Opening activity log")
         page.get_by_role("link", name=" Detail").click()
-        pause()
         page.get_by_role("link", name="Log Kegiatan").click()
-        pause()
 
         for activity_number, activity in enumerate(activities, start=1):
             logger.info(
@@ -130,7 +124,7 @@ def main() -> None:
     parser.add_argument(
         "--delay",
         type=float,
-        default=1.0,
+        default=0.3,
         help="Seconds to wait between browser actions (default: 1)",
     )
     args = parser.parse_args()
