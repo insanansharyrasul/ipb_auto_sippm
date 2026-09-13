@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from playwright.sync_api import Playwright, sync_playwright
+from playwright.sync_api import Playwright, expect, sync_playwright
 
 
 logger = logging.getLogger(__name__)
@@ -110,6 +110,9 @@ def run(
             )
             pause()
             page.get_by_role("button", name="Simpan").click()
+            expect(
+                page.get_by_text("x Data berhasil disimpan.", exact=True).last
+            ).to_be_visible(timeout=10_000)
             pause()
             logger.info("Activity %d submitted successfully", activity_number)
             if activity_number < len(activities):
